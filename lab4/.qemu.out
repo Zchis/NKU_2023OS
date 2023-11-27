@@ -1,0 +1,64 @@
+
+OpenSBI v0.4 (Jul  2 2019 11:53:53)
+   ____                    _____ ____ _____
+  / __ \                  / ____|  _ \_   _|
+ | |  | |_ __   ___ _ __ | (___ | |_) || |
+ | |  | | '_ \ / _ \ '_ \ \___ \|  _ < | |
+ | |__| | |_) |  __/ | | |____) | |_) || |_
+  \____/| .__/ \___|_| |_|_____/|____/_____|
+        | |
+        |_|
+
+Platform Name          : QEMU Virt Machine
+Platform HART Features : RV64ACDFIMSU
+Platform Max HARTs     : 8
+Current Hart           : 0
+Firmware Base          : 0x80000000
+Firmware Size          : 112 KB
+Runtime SBI Version    : 0.1
+
+PMP0: 0x0000000080000000-0x000000008001ffff (A)
+PMP1: 0x0000000000000000-0xffffffffffffffff (A,R,W,X)
+(THU.CST) os is loading ...
+
+Special kernel symbols:
+  entry  0xc0200036 (virtual)
+  etext  0xc0204f2a (virtual)
+  edata  0xc020b060 (virtual)
+  end    0xc0216600 (virtual)
+Kernel executable memory footprint: 90KB
+memory management: default_pmm_manager
+physcial memory map:
+  memory: 0x07e00000, [0x80200000, 0x87ffffff].
+vapaofset is 18446744070488326144
+check_alloc_page() succeeded!
+check_pgdir() succeeded!
+check_boot_pgdir() succeeded!
+use SLOB allocator
+kmalloc_init() succeeded!
+check_vma_struct() succeeded!
+Store/AMO page fault
+page falut at 0x00000100: K/W
+THIS MY:do_pgfault begin, addr = 100 !
+THIS MY:do_pgfault find !
+check_pgfault() succeeded!
+check_vmm() succeeded.
+proc_init begin! 
+alloc_proc() correct!
+THIS MY: kernel_thread bigin!
+THIS MY: do_fork begin! 
+THIS MY: do_fork proc create over thread: 1! isNULL:0 
+proc_init created thread: 1! 
+proc_init find thread: 1, isnull?= 0! 
+proc_init end! 
+cpu_idle begin! 
+schedule begin! 
+schedule next pid is : 1! 
+this initproc, pid = 1, name = "init"
+To U: "Hello world!!".
+To U: "en.., Bye, Bye. :)"
+kernel panic at kern/process/proc.c:458:
+    process exit!!.
+
+Welcome to the kernel debug monitor!!
+Type 'help' for a list of commands.
