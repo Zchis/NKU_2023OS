@@ -156,6 +156,7 @@ mm_destroy(struct mm_struct *mm) {
     mm=NULL;
 }
 
+// 将虚拟地址空间映射到物理地址空间
 int
 mm_map(struct mm_struct *mm, uintptr_t addr, size_t len, uint32_t vm_flags,
        struct vma_struct **vma_store) {
@@ -169,7 +170,7 @@ mm_map(struct mm_struct *mm, uintptr_t addr, size_t len, uint32_t vm_flags,
     int ret = -E_INVAL;
 
     struct vma_struct *vma;
-    if ((vma = find_vma(mm, start)) != NULL && end > vma->vm_start) {
+    if ((vma = find_vma(mm, start)) != NULL && end > vma->vm_start) {// 如果已经存在那么就返回错误
         goto out;
     }
     ret = -E_NO_MEM;
@@ -177,7 +178,7 @@ mm_map(struct mm_struct *mm, uintptr_t addr, size_t len, uint32_t vm_flags,
     if ((vma = vma_create(start, end, vm_flags)) == NULL) {
         goto out;
     }
-    insert_vma_struct(mm, vma);
+    insert_vma_struct(mm, vma);// 创建并插入vma
     if (vma_store != NULL) {
         *vma_store = vma;
     }
@@ -187,6 +188,7 @@ out:
     return ret;
 }
 
+// 复制一个进程的地址空间映射关系
 int
 dup_mmap(struct mm_struct *to, struct mm_struct *from) {
     assert(to != NULL && from != NULL);
@@ -194,7 +196,7 @@ dup_mmap(struct mm_struct *to, struct mm_struct *from) {
     while ((le = list_prev(le)) != list) {
         struct vma_struct *vma, *nvma;
         vma = le2vma(le, list_link);
-        nvma = vma_create(vma->vm_start, vma->vm_end, vma->vm_flags);
+        nvma = vma_create(vma->vm_start, vma->vm_end, vma->vm_flags);// 属性相同
         if (nvma == NULL) {
             return -E_NO_MEM;
         }
@@ -216,14 +218,16 @@ exit_mmap(struct mm_struct *mm) {
     list_entry_t *list = &(mm->mmap_list), *le = list;
     while ((le = list_next(le)) != list) {
         struct vma_struct *vma = le2vma(le, list_link);
-        unmap_range(pgdir, vma->vm_start, vma->vm_end);
+        unmap_range(pgdir, vma->vm_start, vma->vm_end);// 从页表中解除
     }
     while ((le = list_next(le)) != list) {
         struct vma_struct *vma = le2vma(le, list_link);
-        exit_range(pgdir, vma->vm_start, vma->vm_end);
+        exit_range(pgdir, vma->vm_start, vma->vm_end);// 释放物理页并且从VMA列表中移除
     }
 }
 
+
+// 用户内存空间内容与内核内存空间内容的相互拷贝的实现
 bool
 copy_from_user(struct mm_struct *mm, void *dst, const void *src, size_t len, bool writable) {
     if (!user_mem_check(mm, (uintptr_t)src, len, writable)) {
@@ -458,7 +462,17 @@ do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr) {
             //map of phy addr <--->
             //logical addr
             //(3) make the page swappable.
-            page->pra_vaddr = addr;
+
+            // page->pra_vaddr = addr;
+
+
+            ret = swap_in(mm, addr, &page);// 将addr对应的在磁盘上的数据换到page上  
+            if(ret!=0){
+                cprintf("swap_in failed\n");
+                goto failed;
+            }
+            page_insert(mm->pgdir, page, addr, perm);// 建立索引：addr到page的映射关系，设置page的权限为perm
+            swap_map_swappable(mm, addr, page, 1);// 标记为可替换
         } else {
             cprintf("no swap_init_ok but ptep is %x, failed\n", *ptep);
             goto failed;
@@ -469,6 +483,8 @@ failed:
     return ret;
 }
 
+
+// 检查用户空间的内存访问是否合法
 bool
 user_mem_check(struct mm_struct *mm, uintptr_t addr, size_t len, bool write) {
     if (mm != NULL) {

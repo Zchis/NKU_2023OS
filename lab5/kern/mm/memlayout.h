@@ -60,7 +60,7 @@
  * */
 
 #define KSTACKPAGE          2                           // # of pages in kernel stack
-#define KSTACKSIZE          (KSTACKPAGE * PGSIZE)       // sizeof kernel stack
+#define KSTACKSIZE          (KSTACKPAGE * PGSIZE)       // sizeof kernel stack// 内核栈大小
 
 #define USERTOP             0x80000000
 #define USTACKTOP           USERTOP

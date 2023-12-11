@@ -53,17 +53,17 @@ struct Page *alloc_pages(size_t n) {
     bool intr_flag;
 
     while (1) {
-        local_intr_save(intr_flag);
+        local_intr_save(intr_flag);// 保存中断
         {
             page = pmm_manager->alloc_pages(n);
         }
-        local_intr_restore(intr_flag);
+        local_intr_restore(intr_flag);// 还原中断
 
         if (page != NULL || n > 1 || swap_init_ok == 0) break;
 
         extern struct mm_struct *check_mm_struct;
         // cprintf("page %x, call swap_out in alloc_pages %d\n",page, n);
-        swap_out(check_mm_struct, n, 0);
+        swap_out(check_mm_struct, n, 0);// 交换空间
     }
     // cprintf("n %d,get page %x, No %d in alloc_pages\n",n,page,(page-pages));
     return page;
@@ -108,28 +108,28 @@ static void page_init(void) {
 
     uint64_t maxpa = mem_end;
 
-    if (maxpa > KERNTOP) {
+    if (maxpa > KERNTOP) {// 不能超过内核栈顶
         maxpa = KERNTOP;
     }
 
     extern char end[];
 
-    npage = maxpa / PGSIZE;
+    npage = maxpa / PGSIZE;// 物理页面的总数
     // BBL has put the initial page table at the first available page after the
     // kernel
     // so stay away from it by adding extra offset to end
-    pages = (struct Page *)ROUNDUP((void *)end, PGSIZE);
+    pages = (struct Page *)ROUNDUP((void *)end, PGSIZE);// 管理物理页面的信息
 
-    for (size_t i = 0; i < npage - nbase; i++) {
+    for (size_t i = 0; i < npage - nbase; i++) {// 标记为内核使用
         SetPageReserved(pages + i);
     }
 
-    uintptr_t freemem = PADDR((uintptr_t)pages + sizeof(struct Page) * (npage - nbase));
+    uintptr_t freemem = PADDR((uintptr_t)pages + sizeof(struct Page) * (npage - nbase));// 可用内存的起始地址
 
     mem_begin = ROUNDUP(freemem, PGSIZE);
-    mem_end = ROUNDDOWN(mem_end, PGSIZE);
+    mem_end = ROUNDDOWN(mem_end, PGSIZE);// 可用内存的起始和结尾地址
     if (freemem < mem_end) {
-        init_memmap(pa2page(mem_begin), (mem_end - mem_begin) / PGSIZE);
+        init_memmap(pa2page(mem_begin), (mem_end - mem_begin) / PGSIZE);// 初始化页面映射信息
     }
     cprintf("vapaofset is %llu\n",va_pa_offset);
 }
@@ -145,11 +145,11 @@ static void boot_map_segment(pde_t *pgdir, uintptr_t la, size_t size,
     assert(PGOFF(la) == PGOFF(pa));
     size_t n = ROUNDUP(size + PGOFF(la), PGSIZE) / PGSIZE;
     la = ROUNDDOWN(la, PGSIZE);
-    pa = ROUNDDOWN(pa, PGSIZE);
+    pa = ROUNDDOWN(pa, PGSIZE);// 对齐
     for (; n > 0; n--, la += PGSIZE, pa += PGSIZE) {
-        pte_t *ptep = get_pte(pgdir, la, 1);
+        pte_t *ptep = get_pte(pgdir, la, 1);// 获取la对应的页表项，不存在就创建
         assert(ptep != NULL);
-        *ptep = pte_create(pa >> PGSHIFT, PTE_V | perm);
+        *ptep = pte_create(pa >> PGSHIFT, PTE_V | perm);// 建立对应关系
     }
 }
 
@@ -157,12 +157,14 @@ static void boot_map_segment(pde_t *pgdir, uintptr_t la, size_t size,
 // return value: the kernel virtual address of this allocated page
 // note: this function is used to get the memory for PDT(Page Directory
 // Table)&PT(Page Table)
+// 启动阶段分配一页内存，
+// 通常用于分配页目录表和页表的内存。
 static void *boot_alloc_page(void) {
     struct Page *p = alloc_page();
     if (p == NULL) {
         panic("boot_alloc_page failed.\n");
     }
-    return page2kva(p);
+    return page2kva(p);// 获取页表的内核虚拟地址
 }
 
 // pmm_init - setup a pmm to manage physical memory, build PDT&PT to setup
@@ -212,19 +214,19 @@ void pmm_init(void) {
 //  create: a logical value to decide if alloc a page for PT
 // return vaule: the kernel virtual address of this pte
 pte_t *get_pte(pde_t *pgdir, uintptr_t la, bool create) {
-    pde_t *pdep1 = &pgdir[PDX1(la)];
+    pde_t *pdep1 = &pgdir[PDX1(la)];// 一级页表项
     if (!(*pdep1 & PTE_V)) {
         struct Page *page;
-        if (!create || (page = alloc_page()) == NULL) {
-            return NULL;
+        if (!create || (page = alloc_page()) == NULL) {// 不需要新分配或者分配失败
+            return NULL;// 短路
         }
-        set_page_ref(page, 1);
+        set_page_ref(page, 1);// 设置引用次数
         uintptr_t pa = page2pa(page);
         memset(KADDR(pa), 0, PGSIZE);
         *pdep1 = pte_create(page2ppn(page), PTE_U | PTE_V);
     }
 
-    pde_t *pdep0 = &((pde_t *)KADDR(PDE_ADDR(*pdep1)))[PDX0(la)];
+    pde_t *pdep0 = &((pde_t *)KADDR(PDE_ADDR(*pdep1)))[PDX0(la)];// 二级页表项
     if (!(*pdep0 & PTE_V)) {
         struct Page *page;
         if (!create || (page = alloc_page()) == NULL) {
@@ -235,17 +237,17 @@ pte_t *get_pte(pde_t *pgdir, uintptr_t la, bool create) {
         memset(KADDR(pa), 0, PGSIZE);
         *pdep0 = pte_create(page2ppn(page), PTE_U | PTE_V);
         }
-    return &((pte_t *)KADDR(PDE_ADDR(*pdep0)))[PTX(la)];
+    return &((pte_t *)KADDR(PDE_ADDR(*pdep0)))[PTX(la)];// 三级页表项
 }
 
 // get_page - get related Page struct for linear address la using PDT pgdir
 struct Page *get_page(pde_t *pgdir, uintptr_t la, pte_t **ptep_store) {
     pte_t *ptep = get_pte(pgdir, la, 0);
     if (ptep_store != NULL) {
-        *ptep_store = ptep;
+        *ptep_store = ptep;// 获取页表项
     }
     if (ptep != NULL && *ptep & PTE_V) {
-        return pte2page(*ptep);
+        return pte2page(*ptep);// 返回页面
     }
     return NULL;
 }
@@ -253,6 +255,7 @@ struct Page *get_page(pde_t *pgdir, uintptr_t la, pte_t **ptep_store) {
 // page_remove_pte - free an Page sturct which is related linear address la
 //                - and clean(invalidate) pte which is related linear address la
 // note: PT is changed, so the TLB need to be invalidate
+// 删除给定线性地址 la 对应的映射关系，并释放相关的物理页
 static inline void page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
     if (*ptep & PTE_V) {  //(1) check if this page table entry is
         struct Page *page =
@@ -267,6 +270,7 @@ static inline void page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
     }
 }
 
+// 清除一块区域的内存空间和映射
 void unmap_range(pde_t *pgdir, uintptr_t start, uintptr_t end) {
     assert(start % PGSIZE == 0 && end % PGSIZE == 0);
     assert(USER_ACCESS(start, end));
@@ -284,6 +288,7 @@ void unmap_range(pde_t *pgdir, uintptr_t start, uintptr_t end) {
     } while (start != 0 && start < end);
 }
 
+
 void exit_range(pde_t *pgdir, uintptr_t start, uintptr_t end) {
     assert(start % PGSIZE == 0 && end % PGSIZE == 0);
     assert(USER_ACCESS(start, end));
@@ -295,38 +300,38 @@ void exit_range(pde_t *pgdir, uintptr_t start, uintptr_t end) {
     d0start = ROUNDDOWN(start, PTSIZE);
     do {
         // level 1 page directory entry
-        pde1 = pgdir[PDX1(d1start)];
+        pde1 = pgdir[PDX1(d1start)];// 每次找一级页表项
         // if there is a valid entry, get into level 0
         // and try to free all page tables pointed to by
         // all valid entries in level 0 page directory,
         // then try to free this level 0 page directory
         // and update level 1 entry
-        if (pde1&PTE_V){
+        if (pde1&PTE_V){// 一级页表项有效
             pd0 = page2kva(pde2page(pde1));
             // try to free all page tables
             free_pd0 = 1;
             do {
                 pde0 = pd0[PDX0(d0start)];
-                if (pde0&PTE_V) {
+                if (pde0&PTE_V) {// 检测是否有效，有效就找下一级
                     pt = page2kva(pde2page(pde0));
                     // try to free page table
                     free_pt = 1;
                     for (int i = 0;i <NPTEENTRY;i++)
-                        if (pt[i]&PTE_V){
+                        if (pt[i]&PTE_V){// 检测是否有效
                             free_pt = 0;
-                            break;
+                            break;// 如果有还有需要的页表项，就直接跳出
                         }
                     // free it only when all entry are already invalid
-                    if (free_pt) {
+                    if (free_pt) {// 如果全部无效才释放物理页，并且设置为空
                         free_page(pde2page(pde0));
                         pd0[PDX0(d0start)] = 0;
                     }
-                } else
+                } else// 如果无效
                     free_pd0 = 0;
-                d0start += PTSIZE;
+                d0start += PTSIZE;// 下一个pde0页目录项
             } while (d0start != 0 && d0start < d1start+PDSIZE && d0start < end);
             // free level 0 page directory only when all pde0s in it are already invalid
-            if (free_pd0) {
+            if (free_pd0) {// 如果全部pde0有效并且释放，pde1才释放，并且设置为空
                 free_page(pde2page(pde1));
                 pgdir[PDX1(d1start)] = 0;
             }
@@ -351,6 +356,7 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
     // copy content by page unit.
     do {
         // call get_pte to find process A's pte according to the addr start
+        // 调用 get_pte 查找进程 A 的页表项 ptep
         pte_t *ptep = get_pte(from, start, 0), *nptep;
         if (ptep == NULL) {
             start = ROUNDDOWN(start + PTSIZE, PTSIZE);
@@ -358,6 +364,7 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
         }
         // call get_pte to find process B's pte according to the addr start. If
         // pte is NULL, just alloc a PT
+        // 调用 get_pte 查找进程 B 的页表项 nptep，如果不存在则分配一个新的页表
         if (*ptep & PTE_V) {
             if ((nptep = get_pte(to, start, 1)) == NULL) {
                 return -E_NO_MEM;
@@ -366,10 +373,11 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
             // get page from ptep
             struct Page *page = pte2page(*ptep);
             // alloc a page for process B
-            struct Page *npage = alloc_page();
-            assert(page != NULL);
-            assert(npage != NULL);
+            // struct Page *npage = alloc_page();
+            // assert(page != NULL);
+            // assert(npage != NULL);
             int ret = 0;
+
             /* LAB5:EXERCISE2 YOUR CODE
              * replicate content of page to npage, build the map of phy addr of
              * nage with the linear addr start
@@ -389,6 +397,43 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
              * (4) build the map of phy addr of  nage with the linear addr start
              */
 
+
+            // (1) find src_kvaddr: the kernel virtual address of page
+            // uintptr_t src_kvaddr = page2kva(page);
+
+            // (2) find dst_kvaddr: the kernel virtual address of npage
+            // uintptr_t dst_kvaddr = page2kva(npage);
+
+            // (3) memory copy from src_kvaddr to dst_kvaddr, size is PGSIZE
+            // memcpy((void *)dst_kvaddr, (void *)src_kvaddr, PGSIZE);
+
+            // (4) build the map of phy addr of  nage with the linear addr start
+            // ret = page_insert(to, npage, start, perm);
+
+
+            // 如果启用写时复制
+            if(share)
+            {
+                cprintf("Sharing the page 0x%x\n", page2kva(page));
+                // 物理页面共享，并设置两个PTE上的标志位为只读
+                page_insert(from, page, start, perm & ~PTE_W);
+                ret = page_insert(to, page, start, perm & ~PTE_W);
+            }
+            // 完整拷贝内存
+            else
+            {
+                // alloc a page for process B
+                // 目标页面地址
+                struct Page *npage = alloc_page();
+                assert(page!=NULL);
+                assert(npage!=NULL);
+                cprintf("alloc a new page 0x%x\n", page2kva(npage));
+                void * kva_src = page2kva(page);
+                void * kva_dst = page2kva(npage);
+                memcpy(kva_dst, kva_src, PGSIZE);
+                // 将目标页面地址设置到PTE中
+                ret = page_insert(to, npage, start, perm);
+            }
 
             assert(ret == 0);
         }
